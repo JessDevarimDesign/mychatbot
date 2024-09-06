@@ -5,3 +5,5 @@ langchain-community
 pypdf
 streamlit
 chromadb
+tiktoken
+unstructured[local-inference]

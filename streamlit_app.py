@@ -71,17 +71,18 @@ if __name__ == "__main__":
      # Show title and description.
     st.title("💬 Chatbot")
     st.write(
-        "This is a simple chatbot that uses OpenAI's GPT-3.5 model to generate responses. "
+        "This is a simple chatbot that uses OpenAI's GPT-4o-mini model to generate responses. "
         "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
         "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+        "This code assumes you already given a VALID openapi key"
     )
 
-    # Ask user for their OpenAI API key via `st.text_input`.
-    # Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
-    # via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
-    openai_api_key = st.text_input("OpenAI API Key", type="password")
-    if not openai_api_key:
-        st.info("Please add your OpenAI API key to continue.", icon="🗝️")
+    # # Ask user for their OpenAI API key via `st.text_input`.
+    # # Alternatively, you can store the API key in `./.streamlit/secrets.toml` and access it
+    # # via `st.secrets`, see https://docs.streamlit.io/develop/concepts/connections/secrets-management
+    # openai_api_key = st.text_input("OpenAI API Key", type="password")
+    # if not openai_api_key:
+    #     st.info("Please add your OpenAI API key to continue.", icon="🗝️")
 
     with st.sidebar:
         # text_input for the OpenAI API key
@@ -109,7 +110,7 @@ if __name__ == "__main__":
 
         # # add data button widget
         # if is_api_key_valid(api_key):
-        #     add_data = st.button('Add Data', key='add_data')
+        add_data = st.button('Add Data', key='add_data')
         # else:
         #     st.info('No OpenAI API key. Please provide a valid key.')
 
