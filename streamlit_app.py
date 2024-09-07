@@ -1,6 +1,8 @@
 import streamlit as st
+import langchain
 from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.vectorstores import Chroma
+from langchain_community.vectorstores import Chroma
+from pypdf import PdfReader
 
     #TODO DISPLAY AND MANAGE SESSION HISTORY OF CONVERSATION
     # # Create an OpenAI client.
@@ -42,24 +44,31 @@ from langchain.vectorstores import Chroma
     #     st.session_state.messages.append({"role": "assistant", "content": response})
 
 # loading unstructured files of all sorts as LangChain Documents
+#file is string , file name
 def load_document(file):
-    from langchain.document_loaders import UnstructuredFileLoader
-    loader = UnstructuredFileLoader(file)
-    data = loader.load()
-    return data
+    # from langchain.document_loaders import UnstructuredFileLoader
+    # loader = UnstructuredFileLoader(file)
+    # data = loader.load()
+    # return data
+    from langchain_core.documents import Document
+    reader = PdfReader(file)
+    text = ""
+    for page in reader.pages:
+        text+= page.extract_text()
+    return Document(page_content=text)
 
 
 # splitting data in chunks
 def chunk_data(data, chunk_size=256, chunk_overlap=20):
     from langchain.text_splitter import RecursiveCharacterTextSplitter
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    chunks = text_splitter.split_documents(data)
+    chunks = text_splitter.split_documents([data])
     return chunks
 
 
 # create embeddings using OpenAIEmbeddings() and save them in a Chroma vector store
 def create_embeddings(chunks):
-    embeddings = OpenAIEmbeddings()
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
     vector_store = Chroma.from_documents(chunks, embeddings)
     return vector_store
 
@@ -73,7 +82,7 @@ if __name__ == "__main__":
     st.write(
         "This is a simple chatbot that uses OpenAI's GPT-4o-mini model to generate responses. "
         "To use this app, you need to provide an OpenAI API key, which you can get [here](https://platform.openai.com/account/api-keys). "
-        "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
+        # "You can also learn how to build this app step by step by [following our tutorial](https://docs.streamlit.io/develop/tutorials/llms/build-conversational-apps)."
         "This code assumes you already given a VALID openapi key"
     )
 
@@ -97,7 +106,7 @@ if __name__ == "__main__":
 
 
         # file uploader widget
-        uploaded_files = st.file_uploader('Upload any file format with text to analyze:', accept_multiple_files=True)
+        uploaded_files = st.file_uploader('Upload pdf file format with text to analyze:', accept_multiple_files=True)
 
         # chunk size number widget
         chunk_size = st.number_input('Chunk size:', min_value=100, max_value=8192, value=512)
