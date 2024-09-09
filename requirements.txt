@@ -13,4 +13,3 @@ openai==1.35.15
 SQLAlchemy==2.0.31
 streamlit==1.36.0
 pypdf==4.3.0
-

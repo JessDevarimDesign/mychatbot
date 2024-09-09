@@ -1,6 +1,5 @@
 import streamlit as st
-import langchain
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import Chroma
 from pypdf import PdfReader
 
@@ -72,6 +71,27 @@ def create_embeddings(chunks):
     vector_store = Chroma.from_documents(chunks, embeddings)
     return vector_store
 
+def ask_and_get_answer(vector_store, q, k=3):
+    from langchain import hub
+    from langchain.chains import create_retrieval_chain
+    from langchain.chains.combine_documents import create_stuff_documents_chain
+    from langchain_openai import ChatOpenAI
+
+    llm = ChatOpenAI(model='gpt-4o-mini', temperature=1)
+    retriever = vector_store.as_retriever(search_type='similarity', search_kwargs={'k': k})
+    # chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
+    # answer = chain.run(q)
+
+# See full prompt at https://smith.langchain.com/hub/langchain-ai/retrieval-qa-chat
+    retrieval_qa_chat_prompt = hub.pull("langchain-ai/retrieval-qa-chat")
+
+    combine_docs_chain = create_stuff_documents_chain(llm, retrieval_qa_chat_prompt)
+    rag_chain = create_retrieval_chain(retriever, combine_docs_chain)
+
+    answer = rag_chain.invoke({"input": q})
+
+    return answer
+    
 
 if __name__ == "__main__":
 
@@ -164,14 +184,14 @@ if __name__ == "__main__":
                 # deleting the docs folder
                 os.rmdir('./docs/')
 
-        if uploaded_files and 'vs' in st.session_state: #and is_api_key_valid(api_key):
+    if uploaded_files and 'vs' in st.session_state: #and is_api_key_valid(api_key):
 
-            # user's question text input widget
-            q = st.text_input('Ask one or more questions about the content of the uploaded data:', key='text_input')
-            if q: # if the user entered a question and hit enter
-                if 'vs' in st.session_state: # if vector store exists in the session state
-                    vector_store = st.session_state.vs
-                    answer = ask_and_get_answer(vector_store, q, k) #TODO ADD CONVERSATIONAL CONTEXT FED TO LLM
+        # user's question text input widget
+        q = st.text_input('Ask one or more questions about the content of the uploaded data:', key='text_input')
+        if q: # if the user entered a question and hit enter
+            if 'vs' in st.session_state: # if vector store exists in the session state
+                vector_store = st.session_state.vs
+                response = ask_and_get_answer(vector_store, q, k) #TODO ADD CONVERSATIONAL CONTEXT FED TO LLM
 
-                    # text area widget for the LLM answer with flexible height
-                    st.text_area('LLM Answer: ', value=answer, height=200)
+                # text area widget for the LLM answer with flexible height
+                st.text_area('LLM Answer: ', value=response['answer'], height=200)
