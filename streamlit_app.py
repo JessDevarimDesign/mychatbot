@@ -71,25 +71,102 @@ def create_embeddings(chunks):
     vector_store = Chroma.from_documents(chunks, embeddings)
     return vector_store
 
-def ask_and_get_answer(vector_store, q, k=3):
-    from langchain import hub
+def get_history_aware_retriever(llm, retriever):
+    from langchain.chains import create_history_aware_retriever
+    from langchain_core.prompts import MessagesPlaceholder
+    from langchain_core.prompts import ChatPromptTemplate
+
+    contextualize_q_system_prompt = (
+    "Given a chat history and the latest user question "
+    "which might reference context in the chat history, "
+    "formulate a standalone question which can be understood "
+    "without the chat history. Do NOT answer the question, "
+    "just reformulate it if needed and otherwise return it as is."
+)
+
+    contextualize_q_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", contextualize_q_system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
+    history_aware_retriever = create_history_aware_retriever(
+        llm, retriever, contextualize_q_prompt
+    )
+
+    return history_aware_retriever
+
+def get_history_aware_rag_chain(vector_store, k=3):
+    # from langchain import hub
     from langchain.chains import create_retrieval_chain
     from langchain.chains.combine_documents import create_stuff_documents_chain
     from langchain_openai import ChatOpenAI
+    from langchain_core.prompts import MessagesPlaceholder
+    from langchain_core.prompts import ChatPromptTemplate
 
     llm = ChatOpenAI(model='gpt-4o-mini', temperature=1)
     retriever = vector_store.as_retriever(search_type='similarity', search_kwargs={'k': k})
     # chain = RetrievalQA.from_chain_type(llm=llm, chain_type="stuff", retriever=retriever)
     # answer = chain.run(q)
+    history_aware_retriever = get_history_aware_retriever(llm, retriever)
 
-# See full prompt at https://smith.langchain.com/hub/langchain-ai/retrieval-qa-chat
-    retrieval_qa_chat_prompt = hub.pull("langchain-ai/retrieval-qa-chat")
+# # See full prompt at https://smith.langchain.com/hub/langchain-ai/retrieval-qa-chat
+#     retrieval_qa_chat_prompt = hub.pull("langchain-ai/retrieval-qa-chat")
+    system_prompt = (
+        "You are an assistant for question-answering tasks. "
+        "Use the following pieces of retrieved context to answer "
+        "the question. If you don't know the answer, say that you "
+        "don't know. Use three sentences maximum and keep the "
+        "answer concise."
+        "\n\n"
+        "{context}"
+    )
 
-    combine_docs_chain = create_stuff_documents_chain(llm, retrieval_qa_chat_prompt)
-    rag_chain = create_retrieval_chain(retriever, combine_docs_chain)
+    qa_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            MessagesPlaceholder("chat_history"),
+            ("human", "{input}"),
+        ]
+    )
 
-    answer = rag_chain.invoke({"input": q})
+    combine_docs_chain = create_stuff_documents_chain(llm, qa_prompt)
+    rag_chain = create_retrieval_chain(history_aware_retriever , combine_docs_chain)
+    return rag_chain
 
+def ask_and_get_answer(q, rag_chain):
+    from langchain_core.chat_history import BaseChatMessageHistory
+    from langchain_community.chat_message_histories import ChatMessageHistory
+    from langchain_core.runnables.history import RunnableWithMessageHistory
+    
+        ### Statefully manage chat history ###
+    #TODO need only one store. ALready stored chat hisotry in browswer session
+    store = {}
+
+#seems like it gets wiped out every rerun and no context to llm
+#need to feed this function from the main, browswer hisotry and integrate it with ChatMessageHisotry class
+    def get_session_history(session_id: str) -> BaseChatMessageHistory:
+        if session_id not in store:
+            store[session_id] = ChatMessageHistory()
+        print(store[session_id])
+        return store[session_id]
+
+
+    conversational_rag_chain = RunnableWithMessageHistory(
+        rag_chain,
+        get_session_history,
+        input_messages_key="input",
+        history_messages_key="chat_history",
+        output_messages_key="answer",
+    )
+
+    answer = conversational_rag_chain.invoke(
+        {"input": q},
+        config={
+            "configurable": {"session_id": "abc1"}
+        },  # constructs a key "abc1" in `store`.
+    )["answer"]
     return answer
     
 
@@ -200,9 +277,10 @@ if __name__ == "__main__":
             st.session_state.messages.append({"role": "user", "content": q})
             if 'vs' in st.session_state: # if vector store exists in the session state
                 vector_store = st.session_state.vs
-                response = ask_and_get_answer(vector_store, q, k) #TODO ADD CONVERSATIONAL CONTEXT FED TO LLM
+                rag_chain = get_history_aware_rag_chain(vector_store, k) 
+                response = ask_and_get_answer(q, rag_chain)
 
                 # text area widget for the LLM answer with flexible height
-                st.text_area('LLM Answer: ', value=response['answer'], height=200)
-                st.text_area('LLM Context Used: ', value=response['context'], height=200)
-                st.session_state.messages.append({"role": "assistant", "content": response['answer']})
+                st.text_area('LLM Answer: ', value=response, height=200)
+                # st.text_area('LLM Context Used: ', value=response['context'], height=200)
+                st.session_state.messages.append({"role": "assistant", "content": response})
