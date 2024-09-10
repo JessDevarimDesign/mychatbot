@@ -184,14 +184,25 @@ if __name__ == "__main__":
                 # deleting the docs folder
                 os.rmdir('./docs/')
 
+    #main window
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+        
     if uploaded_files and 'vs' in st.session_state: #and is_api_key_valid(api_key):
 
         # user's question text input widget
         q = st.text_input('Ask one or more questions about the content of the uploaded data:', key='text_input')
         if q: # if the user entered a question and hit enter
+            st.session_state.messages.append({"role": "user", "content": q})
             if 'vs' in st.session_state: # if vector store exists in the session state
                 vector_store = st.session_state.vs
                 response = ask_and_get_answer(vector_store, q, k) #TODO ADD CONVERSATIONAL CONTEXT FED TO LLM
 
                 # text area widget for the LLM answer with flexible height
                 st.text_area('LLM Answer: ', value=response['answer'], height=200)
+                st.text_area('LLM Context Used: ', value=response['context'], height=200)
+                st.session_state.messages.append({"role": "assistant", "content": response['answer']})
