@@ -135,7 +135,7 @@ def get_history_aware_rag_chain(vector_store, k=3):
     rag_chain = create_retrieval_chain(history_aware_retriever , combine_docs_chain)
     return rag_chain
 
-def ask_and_get_answer(q, rag_chain):
+def ask_and_get_answer_history_aware(q, rag_chain, session_history):
     from langchain_core.chat_history import BaseChatMessageHistory
     from langchain_community.chat_message_histories import ChatMessageHistory
     from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -151,11 +151,20 @@ def ask_and_get_answer(q, rag_chain):
             store[session_id] = ChatMessageHistory()
         print(store[session_id])
         return store[session_id]
-
+    
+    def construct_langchain_message_history(session_history):
+        langchain_message_history=[]
+        from langchain_core.messages import HumanMessage, AIMessage
+        for m in session_history:
+            if m['role']=="user":
+                langchain_message_history.append(HumanMessage(m['content']))
+            else:
+                langchain_message_history.append(AIMessage(m['content']))
+        return langchain_message_history
 
     conversational_rag_chain = RunnableWithMessageHistory(
         rag_chain,
-        get_session_history,
+        get_session_history, #does it get fed and also used to store messages in the same function ?
         input_messages_key="input",
         history_messages_key="chat_history",
         output_messages_key="answer",
@@ -278,7 +287,7 @@ if __name__ == "__main__":
             if 'vs' in st.session_state: # if vector store exists in the session state
                 vector_store = st.session_state.vs
                 rag_chain = get_history_aware_rag_chain(vector_store, k) 
-                response = ask_and_get_answer(q, rag_chain)
+                response = ask_and_get_answer_history_aware(q, rag_chain)
 
                 # text area widget for the LLM answer with flexible height
                 st.text_area('LLM Answer: ', value=response, height=200)
