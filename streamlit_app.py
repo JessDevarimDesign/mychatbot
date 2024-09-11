@@ -135,11 +135,12 @@ def get_history_aware_rag_chain(vector_store, k=3):
     rag_chain = create_retrieval_chain(history_aware_retriever , combine_docs_chain)
     return rag_chain
 
-def ask_and_get_answer_history_aware(q, rag_chain, session_history):
+def ask_and_get_answer_history_aware(q, rag_chain):
     from langchain_core.chat_history import BaseChatMessageHistory
     from langchain_community.chat_message_histories import ChatMessageHistory
     from langchain_core.runnables.history import RunnableWithMessageHistory
-    
+    from langchain_community.chat_message_histories import SQLChatMessageHistory
+
         ### Statefully manage chat history ###
     #TODO need only one store. ALready stored chat hisotry in browswer session
     store = {}
@@ -147,20 +148,21 @@ def ask_and_get_answer_history_aware(q, rag_chain, session_history):
 #seems like it gets wiped out every rerun and no context to llm
 #need to feed this function from the main, browswer hisotry and integrate it with ChatMessageHisotry class
     def get_session_history(session_id: str) -> BaseChatMessageHistory:
-        if session_id not in store:
-            store[session_id] = ChatMessageHistory()
-        print(store[session_id])
-        return store[session_id]
+        # if session_id not in store:
+        #     store[session_id] = ChatMessageHistory()
+        # print(store[session_id])
+        # return store[session_id]
+        return SQLChatMessageHistory(session_id, "sqlite:///memory.db")
     
-    def construct_langchain_message_history(session_history):
-        langchain_message_history=[]
-        from langchain_core.messages import HumanMessage, AIMessage
-        for m in session_history:
-            if m['role']=="user":
-                langchain_message_history.append(HumanMessage(m['content']))
-            else:
-                langchain_message_history.append(AIMessage(m['content']))
-        return langchain_message_history
+    # def construct_langchain_message_history(session_history):
+    #     langchain_message_history=[]
+    #     from langchain_core.messages import HumanMessage, AIMessage
+    #     for m in session_history:
+    #         if m['role']=="user":
+    #             langchain_message_history.append(HumanMessage(m['content']))
+    #         else:
+    #             langchain_message_history.append(AIMessage(m['content']))
+    #     return langchain_message_history
 
     conversational_rag_chain = RunnableWithMessageHistory(
         rag_chain,
